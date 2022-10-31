@@ -69,6 +69,21 @@ public:
 
 //----------------------------------------------------
 
+class CHittablePlane : public IHittable
+{
+public:
+    CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal, const glm::vec3 &up, float sx, float sy, const std::shared_ptr<CMaterial> &material);
+
+    virtual bool Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
+
+public:
+    glm::vec3   m_origin;
+    glm::vec3   m_vx, m_vy, m_vz;
+    float       m_sx, m_sy;
+};
+
+//----------------------------------------------------
+
 class CHittableMesh : public IHittable
 {
 public:

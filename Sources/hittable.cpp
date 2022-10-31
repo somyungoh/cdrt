@@ -91,6 +91,60 @@ bool    CHittableTriangle::Hit(const CRay &ray, float t_min, float t_max, SHitRe
 
 //----------------------------------------------------
 
+CHittablePlane::CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal, const glm::vec3 &up, float sx, float sy, const std::shared_ptr<CMaterial> &material)
+: m_origin(origin)
+, m_vz(glm::normalize(normal))
+, m_vy(glm::normalize(up))
+, m_vx(glm::normalize(glm::cross(normal, up)))
+, m_sx(sx)
+, m_sy(sy)
+{
+    m_material = material;
+
+    const glm::vec3 p1 = m_origin - m_vx * m_sx * 0.5f - m_vy * sy * 0.5f - m_vz * _EPSILON;
+    const glm::vec3 p2 = m_origin + m_vx * m_sx * 0.5f + m_vy * sy * 0.5f + m_vz * _EPSILON;
+    m_aabb = CAABB( glm::vec3(glm::min(p1.x, p2.x), glm::min(p1.y, p2.y), glm::min(p1.z, p2.z)),
+                    glm::vec3(glm::max(p1.x, p2.x), glm::max(p1.y, p2.y), glm::max(p1.z, p2.z))
+    );
+}
+
+//----------------------------------------------------
+
+bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+{
+    // check intersection
+    glm::vec3 intersection_point;
+
+    const glm::vec3 oc = m_origin - ray.m_origin;
+    const float dotNL = glm::dot(ray.m_dir, m_vz);
+
+    // compute t and intersection point
+    const float t = dot(oc, m_vz) / dotNL;
+    intersection_point = ray.m_origin + ray.m_dir * t;
+
+    const glm::vec3 projected_vector = intersection_point - m_origin;
+
+    const float dotPNX = dot(projected_vector, m_vx);
+    const float dotPNY = dot(projected_vector, m_vy);
+
+    // there is a hit
+    if (t > _EPSILON
+        && dotPNX >= -0.5 * m_sx && dotPNX < m_sx * 0.5
+        && dotPNY >= -0.5 * m_sy && dotPNY < m_sy * 0.5)
+    {
+        hitRec.t = t;
+        hitRec.p = ray.At(hitRec.t);
+        hitRec.n = m_vz;
+        hitRec.setFaceNormal(ray);
+        hitRec.p_material = m_material;
+
+        return true;
+    }
+    return false;
+}
+
+//----------------------------------------------------
+
 CHittableMesh::CHittableMesh(const glm::vec3 &origin, const std::shared_ptr<CMaterial> &material)
 : m_origin(origin)
 , m_triangles(std::make_shared<CHittableList>())
