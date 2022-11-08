@@ -7,7 +7,7 @@
 _CD_NAMESPACE_BEGIN
 //----------------------------------------------------
 
-CHittableSphere::CHittableSphere(const glm::vec3 &origin, float radius, const std::shared_ptr<CMaterial> &material)
+CHittableSphere::CHittableSphere(const glm::vec3 &origin, float radius, const std::shared_ptr<IMaterial> &material)
 : m_origin(origin)
 , m_radius(radius)
 {
@@ -43,7 +43,49 @@ bool    CHittableSphere::Hit(const CRay &ray, float t_min, float t_max, SHitRec 
 
 //----------------------------------------------------
 
-CHittableTriangle::CHittableTriangle(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2, const std::shared_ptr<CMaterial> &material)
+bool    CHittableSphere::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+{
+    glm::vec3   oc = ray.m_origin - m_origin;
+    float       b = glm::dot(oc, ray.m_dir);
+    float       c = glm::dot(oc, oc) - m_radius * m_radius;
+    float       h = b * b - c;
+
+    if (h < 0.0)
+        return false;
+
+    float t[2];
+    SHitRec hitRec;
+
+    t[0] = -b - glm::sqrt(h);
+    t[1] = -b + glm::sqrt(h);
+
+    hitRec.t = t[0];
+    if (hitRec.t < t_min)
+        hitRec.t = t[1];
+    if (hitRec.t < t_min || hitRec.t > t_max)
+        return false;
+
+    hitRec.p = ray.At(hitRec.t);
+    hitRec.n = (hitRec.p - m_origin) / m_radius;
+    hitRec.setFaceNormal(ray);
+    hitRec.p_material = m_material;
+    hits.push_back(hitRec);
+
+    if (hitRec.t == t[1])
+        return true;
+
+    hitRec.t = t[1];
+    hitRec.p = ray.At(hitRec.t);
+    hitRec.n = (hitRec.p - m_origin) / m_radius;
+    hitRec.setFaceNormal(ray);
+    hitRec.p_material = m_material;
+    hits.push_back(hitRec);
+    return true;
+}
+
+//----------------------------------------------------
+
+CHittableTriangle::CHittableTriangle(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2, const std::shared_ptr<IMaterial> &material)
 : m_v0(v0)
 , m_v1(v1)
 , m_v2(v2)
@@ -84,14 +126,27 @@ bool    CHittableTriangle::Hit(const CRay &ray, float t_min, float t_max, SHitRe
     hitRec.p = ray.At(t);
     hitRec.n = m_n;
     hitRec.setFaceNormal(ray);
-    hitRec.p_material = m_material;
+    hitRec.p_material = m_material;\
 
     return true;
 }
 
 //----------------------------------------------------
 
-CHittablePlane::CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal, const glm::vec3 &up, float sx, float sy, const std::shared_ptr<CMaterial> &material)
+bool    CHittableTriangle::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+{
+    SHitRec   hitRec;
+    if(Hit(ray, t_min, t_max, hitRec))
+    {
+        hits.push_back(hitRec);
+        return true;
+    }
+    return false;
+}
+
+//----------------------------------------------------
+
+CHittablePlane::CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal, const glm::vec3 &up, float sx, float sy, const std::shared_ptr<IMaterial> &material)
 : m_origin(origin)
 , m_vz(glm::normalize(normal))
 , m_vy(glm::normalize(up))
@@ -112,20 +167,19 @@ CHittablePlane::CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal,
 
 bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
 {
-    // check intersection
-    glm::vec3 intersection_point;
-
-    const glm::vec3 oc = m_origin - ray.m_origin;
-    const float dotNL = glm::dot(ray.m_dir, m_vz);
+    const glm::vec3     oc = m_origin - ray.m_origin;
+    const float         dotNL = glm::dot(ray.m_dir, m_vz);
 
     // compute t and intersection point
     const float t = dot(oc, m_vz) / dotNL;
-    intersection_point = ray.m_origin + ray.m_dir * t;
 
-    const glm::vec3 projected_vector = intersection_point - m_origin;
+    if (t < t_min || t > t_max)
+        return false;
 
-    const float dotPNX = dot(projected_vector, m_vx);
-    const float dotPNY = dot(projected_vector, m_vy);
+    const glm::vec3     intersection_point = ray.m_origin + ray.m_dir * t;
+    const glm::vec3     projected_vector = intersection_point - m_origin;
+    const float         dotPNX = dot(projected_vector, m_vx);
+    const float         dotPNY = dot(projected_vector, m_vy);
 
     // there is a hit
     if (t > _EPSILON
@@ -145,7 +199,20 @@ bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &
 
 //----------------------------------------------------
 
-CHittableMesh::CHittableMesh(const glm::vec3 &origin, const std::shared_ptr<CMaterial> &material)
+bool    CHittablePlane::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+{
+    SHitRec   hitRec;
+    if(Hit(ray, t_min, t_max, hitRec))
+    {
+        hits.push_back(hitRec);
+        return true;
+    }
+    return false;
+}
+
+//----------------------------------------------------
+
+CHittableMesh::CHittableMesh(const glm::vec3 &origin, const std::shared_ptr<IMaterial> &material)
 : m_origin(origin)
 , m_triangles(std::make_shared<CHittableList>())
 , m_isMeshLoaded(false)
@@ -263,6 +330,19 @@ bool    CHittableMesh::Hit(const CRay &ray, float t_min, float t_max, SHitRec &h
     }
 
     return m_triangles->Hit(ray, t_min, t_max, hitRec);
+}
+
+//----------------------------------------------------
+
+bool    CHittableMesh::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+{
+    if (!m_isMeshLoaded)
+    {
+        std::cerr << "[Mesh] Error: Attempting to use mesh without loading!\n";
+        return false;
+    }
+
+    return m_triangles->HitAll(ray, t_min, t_max, hits);
 }
 
 //----------------------------------------------------

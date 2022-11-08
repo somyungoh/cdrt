@@ -88,6 +88,57 @@ bool CBVHAccel::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) 
 
 //----------------------------------------------------
 
+bool CBVHAccel::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+{
+    // follow ray through BVH nodes to find primitive intersections
+    int     toVisitOffset = 0;
+    int     currentNodeIndex = 0;
+    int     nodesToVisit[64];
+
+    while (true) {
+        const SLinearBVHNode    *node = &m_nodes[currentNodeIndex];
+
+        // check ray against BVH node
+        if (node->bounds.Hit(ray)) {
+            if (node->nHittables > 0)
+            {
+                // intersect ray with primitives in leaf BVH node
+                for (int i = 0; i < node->nHittables; i++)
+                    m_hittables[node->hittablesOffset + i]->HitAll(ray, t_min, t_max, hits);
+                if (toVisitOffset == 0)
+                    break;
+                currentNodeIndex = nodesToVisit[--toVisitOffset];
+            }
+            else
+            {
+                // put far BVH node on nodesToVisit stack, advance to near node
+                const glm::vec3 invDir = 1.f / ray.m_dir;
+                int             dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
+
+                if (dirIsNeg[node->axis])
+                {
+                    nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
+                    currentNodeIndex = node->secondChildOffset;
+                }
+                else
+                {
+                    nodesToVisit[toVisitOffset++] = node->secondChildOffset;
+                    currentNodeIndex = currentNodeIndex + 1;
+                }
+            }
+        }
+        else {
+            if (toVisitOffset == 0)
+                break;
+            currentNodeIndex = nodesToVisit[--toVisitOffset];
+        }
+    }
+
+    return hits.size() > 0;
+}
+
+//----------------------------------------------------
+
 void    CBVHAccel::Clear()
 {
     m_hittables.clear();

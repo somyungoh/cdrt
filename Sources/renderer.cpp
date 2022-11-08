@@ -45,7 +45,7 @@ void    CRenderer::Render()
                 const CRay  ray = m_camera->GetRay(u, v);
 
                 // Raycast!
-                glm::vec3   color = _RecursiveRaycast(ray, m_renderSetting.nMaxDepth);
+                glm::vec3   color = _Raycast(ray);
 
                 m_pixmap[(h * m_renderSetting.render_w + w) * 3 + 0] += color.r;
                 m_pixmap[(h * m_renderSetting.render_w + w) * 3 + 1] += color.g;
@@ -129,14 +129,17 @@ void    CRenderer::InitScene()
     croissant->Load("Model/Croissants_obj/Croissant.obj");
     m_scene->Add(croissant);
 #else
-    m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0, 0, 0), 0.1, mat_lambertWhite)));
+    //m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0, 0, 0), 0.1, mat_lambertWhite)));
 #endif
     m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0.1, 0.097, 0.3), 0.15, mat_lambertWhite)));
     m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0.35, 0.07, 0.18), 0.12, mat_metalRose)));
     m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(-0.3, 0.05, 0), 0.1, mat_metalWhite)));
     m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0.18, 0.025, -0.15), 0.05, mat_glass)));
     m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(-0.155, 0.06, 0.23), 0.11, mat_metalBlue)));
-    m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0, -10.05, 0), 10, mat_lambertWhite)));
+
+    // floor
+    m_scene->Add(std::make_shared<cd::CHittablePlane>(cd::CHittablePlane(glm::vec3(0, -0.1, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1), 1, 1, mat_lambertWhite)));
+    // m_scene->Add(std::make_shared<cd::CHittableSphere>(cd::CHittableSphere(glm::vec3(0, -10.05, 0), 10, mat_lambertWhite)));
 
     // BVH-Tree Construction
     m_scene->BuildBVHTree();
@@ -144,21 +147,210 @@ void    CRenderer::InitScene()
 
 //----------------------------------------------------
 
-glm::vec3   CRenderer::_RecursiveRaycast(const CRay &ray, int depth)
+glm::vec3   CRenderer::_Raycast(const CRay &ray)
+{
+    return _ConvolutionPrimaryRaycast(ray);
+    // return _RecursivePathTrace(ray, m_renderSetting.nMaxDepth);
+}
+
+//----------------------------------------------------
+
+// Primary raycast for convoluation domain raytracing.
+// This is a camera -> object raycast.
+glm::vec3   CRenderer::_ConvolutionPrimaryRaycast(const CRay &ray)
+//color shader::_ConvolutionCast(const light *light, const hitrec &hit) const
+{
+    // if there is no hit, return background color
+    // if (!&hit) return raytracer->setting.bgColor;
+
+    // initialize
+    float R0 = 0;
+    float RN = 0;
+    float cosDR;
+
+    // 1. Compute R0 (Direct Illumination) Term
+
+    SHitRec     hitRec;
+    if (!m_scene->Hit(ray, 0.00001f, _INFINITY, hitRec))
+        return glm::vec3(0);    // empty hit
+
+    // TEMP Light
+    constexpr glm::vec3 pointLight = {0, 0.5f, 0};
+    float ndotl = glm::dot(glm::normalize(pointLight - hitRec.p), hitRec.n);
+    ndotl = glm::clamp(ndotl, 0.f, 1.f);
+
+    return hitRec.p_material->Albedo() * ndotl;
+
+    // TODO: Create a Plane 'hittable'
+    // TODO: Make that as a light
+
+/*
+
+    // *****	R0 TERM		***** //
+
+	// compute general D/R towards the center of the light
+	vec3 light_center = light->origin();
+	R0 = raytracer->raycast_DR(hit, light_center, hit.object, 0);	// it will only return the r0 term.
+	R0 = R0 > raytracer->setting.DIG ? R0 : raytracer->setting.DIG;
+
+	// *** Archive this way of R0 shading
+	//float cosT	= dot(normalize(light_center - hit.hitP), hit.normal);
+	//float t		= (1 + cosT) / 2.f;
+	//float delta = 0;
+	//float overcos = (float)((2 + delta) / (1 + cosT + delta)) * DIG;
+	//R0 = t * overcos + (1 - t) * (R0 + DIG);
+
+	// ***** end of R0 (Direct Illumination) term
+
+	// *****	RN TERM		***** //
+
+	// Collect RN (Energy portion) for all objects
+	// - compute ratio point
+	// - compute ray
+	// - compute d/r and light energy
+	
+	for (int i = 0; i < raytracer->scene_->shapes.size(); i++) {
+
+		// ***** TEMP: Skip planes for now. It is either light or floor
+		if (dynamic_cast<plane*>(raytracer->scene_->shapes[i])) continue;
+		if (raytracer->scene_->shapes[i]->getID() == hit.object->getID()) continue;	// we already did this for R0
+
+		// shoot RN ray to the target point
+		vec3 targetPoint;
+
+		//	different ray direction by light type
+		if (light->get_type() == light::POINT) {
+			
+			targetPoint = light->origin();
+		}
+		else if (light->get_type() == light::DRAREA) {
+		
+			//	0. compute ratio point	//
+			//	the ratio point is due to size of the light - object.
+
+			vec3  light_center	= light->origin();
+			vec3  object_center	= raytracer->scene_->shapes[i]->get_center();
+			float sLight		= ((drAreaLight*)light)->get_size();
+			float sObject		= raytracer->scene_->shapes[i]->get_size();
+
+			// compute ratio point
+			float ratio = sObject / (sLight + sObject);
+			targetPoint = object_center + normalize(light_center - object_center) * distance(light_center, object_center) * ratio;	// FINAL POINT
+		}
+
+		// raycast RN
+		RN += raytracer->raycast_DR(hit, targetPoint, raytracer->scene_->shapes[i], light);
+	}
+
+	// end of RN term (Energy Portion)
+
+	// 3. Finally, combine with the light energy.
+	
+	// tweak values
+	R0 *= raytracer->setting.K_R0;
+	RN *= raytracer->setting.K_RN;
+
+	cosDR = (raytracer->setting.DIG) / (R0 + RN);
+	
+	// computing surface color
+	color surface_color = hit.object->get_mat().Diffuse() * (float)pow(cosDR * raytracer->setting.K_TOTAL_DR_S, raytracer->setting.EXP_TOTAL_DR_S);
+
+	return surface_color;
+*/
+
+}
+
+/*
+// raycast in D/R ray
+// D/R ray is a secondary ray that shoots towards the light from the primary hit.
+float renderer::raycast_DR(const hitrec &hit, const vec3 &targetP, const shape* targetObj, const light* light) const {
+
+	// ready to perform intersection test
+	float R = 0;
+	float t_start = 0;	// t of origin point(start) = 0
+	float t_end = 0;
+	float LIGHT_ENERGY = 0;
+
+	bool  isInside;
+	bool  selfIntersect;
+	isInside = selfIntersect = hit.object->getID() == targetObj->getID();
+
+	vec3	 new_origin = hit.hitP - hit.normal * setting.DIG;	// dig inside
+	vec3	 new_direction = normalize(targetP - new_origin);	// towards center of the light
+	ray		 new_ray(new_origin, new_direction);
+	hitqueue hits;
+
+
+	// ---	Step1. Perform intersection test with current target object		--- //
+
+	targetObj->intersection(new_ray, hits);	// Intersection Test!
+
+
+	while (!hits.empty()) {
+		if (isInside) {	// going in -> out
+//		if (dot(new_direction, hits.top().normal) >= 0) {	// going in -> out
+
+			t_end = hits.top().t;
+			float new_r = t_end - t_start;
+
+			if (selfIntersect)	// R0 term happens here
+				R += new_r;
+			else
+				R += (new_r / (t_start + setting.A_ZI));
+
+			isInside = false;
+		}
+		else {				// going out -> in
+			t_start = hits.top().t;
+			isInside = true;
+		}
+
+		if (!hits.empty()) hits.pop();	// done with current hit object
+	}
+
+	// return R0 Term
+	if (selfIntersect) return R;
+
+
+	// ---	Step2. Perform intersection test with light	--- //
+
+	// clear previous queue
+	hitqueue emptyQueue;
+	std::swap(hits, emptyQueue);
+
+	if (light->get_type() == light::DRAREA) {
+
+		LIGHT_ENERGY = ((drAreaLight*)(light))->get_intensity(new_ray);
+
+	}
+	else if (light->get_type() == light::POINT) {
+
+		LIGHT_ENERGY = light->get_intensity();
+	}
+
+	// RN Term
+	return R * LIGHT_ENERGY;
+}
+*/
+
+
+//----------------------------------------------------
+
+glm::vec3   CRenderer::_RecursivePathTrace(const CRay &ray, int depth)
 {
     // max-depth reached
     if (depth <= 0) {
         return glm::vec3(0);
     }
 
-    cd::SHitRec     hitRec;
+    SHitRec     hitRec;
     if (m_scene->Hit(ray, 0.00001f, _INFINITY, hitRec))
     {
         // bounced rays
-        cd::CRay    scatteredRay;
+        CRay        scatteredRay;
         glm::vec3   attenuation;
         if (hitRec.p_material->Scatter(ray, hitRec, attenuation, scatteredRay))
-            return attenuation * _RecursiveRaycast(scatteredRay, depth - 1);
+            return attenuation * _RecursivePathTrace(scatteredRay, depth - 1);
         return glm::vec3(0);
     }
 

@@ -24,6 +24,7 @@ _CD_NAMESPACE_BEGIN
 
 struct SHitRec;
 class IHittable;
+typedef std::vector<SHitRec> VHits;
 
 //----------------------------------------------------
 
@@ -97,6 +98,7 @@ public:
     ~CBVHAccel();
 
     bool            Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const;
+    bool            HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const;
     inline bool     IsEmpty() const { return (m_nodes == nullptr); }
     void            Clear();
 

@@ -16,6 +16,7 @@ public:
     inline void     Clear();
 
     virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const override;
 
     // Construct bvh-tree from the loaded hittables. Call this once all the
     // hittables are loaded in "m_hittables".

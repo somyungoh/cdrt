@@ -38,11 +38,18 @@ public:
     bool    IsFinished() { return m_isFinished; };
 
 private:
-    glm::vec3   _RecursiveRaycast(const CRay &ray, int depth);
+    // Different Raycast methods.
+    glm::vec3   _Raycast(const CRay &ray);
+    glm::vec3   _ConvolutionPrimaryRaycast(const CRay &ray);
+    glm::vec3   _ConvolutionSecondaryRaycast(const CRay &ray);
+    glm::vec3   _RecursivePathTrace(const CRay &ray, int depth);
+
+private:
     void        _ClearOldRender();
 
 private:
     std::shared_ptr<CHittableList>  m_scene;
+    // TODO: Light
     std::shared_ptr<CCamera>        m_camera;
 
     SRenderSetting                  m_renderSetting;
