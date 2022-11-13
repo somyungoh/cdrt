@@ -46,8 +46,15 @@ void init()
     // render setting
     renderSetting.render_w      = 800;
     renderSetting.render_h      = 600;
-    renderSetting.nSamples      = 9;
+    renderSetting.nSamples      = 1;    // 4, 9 ,16
     renderSetting.nMaxDepth     = 10;
+
+    renderSetting.K_DIG             = 0.001f;
+    renderSetting.A_ZI              = 0.00001f;
+    renderSetting.K_R0              = 1.f;
+    renderSetting.K_RN              = 0.05f;
+    renderSetting.K_TOTAL_DR_S      = 1.f;
+    renderSetting.EXP_TOTAL_DR_S    = 1.f;
 
     renderer.SetRenderSetting(renderSetting);
     renderer.InitScene();

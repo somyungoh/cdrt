@@ -12,7 +12,7 @@ inline void     CHittableList::Clear()
 
 //----------------------------------------------------
 
-bool    CHittableList::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+bool    CHittableList::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec)
 {
     // BVH-Acceleration
     if (!m_bvhAccel->IsEmpty())
@@ -39,6 +39,19 @@ bool    CHittableList::Hit(const CRay &ray, float t_min, float t_max, SHitRec &h
 
 //----------------------------------------------------
 
+bool    CHittableList::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits)
+{
+    // BVH-Acceleration
+    if (!m_bvhAccel->IsEmpty())
+    {
+        return m_bvhAccel->HitAll(ray, t_min, t_max, hits);
+    }
+
+    return false;
+ }
+
+//----------------------------------------------------
+
 bool    CHittableList::BuildBVHTree()
 {
     // FIXME: not calling BuildBVHTree() will cause crash, because "m_bvhAccel" is not
@@ -47,8 +60,8 @@ bool    CHittableList::BuildBVHTree()
     m_bvhAccel = std::make_shared<CBVHAccel>(CBVHAccel(m_hittables, 32, CBVHAccel::SAH));
 
     // clear local hittable list which now is a dublicate data with the one in bvh-tree.
-    if (!m_bvhAccel->IsEmpty())
-        m_hittables.clear();
+    // if (!m_bvhAccel->IsEmpty())
+    //    m_hittables.clear();
 
     return true;
 }

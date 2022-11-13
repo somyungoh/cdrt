@@ -17,7 +17,7 @@ CHittableSphere::CHittableSphere(const glm::vec3 &origin, float radius, const st
 
 //----------------------------------------------------
 
-bool    CHittableSphere::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+bool    CHittableSphere::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec)
 {
     glm::vec3   oc = ray.m_origin - m_origin;
     float       b = glm::dot(oc, ray.m_dir);
@@ -36,6 +36,7 @@ bool    CHittableSphere::Hit(const CRay &ray, float t_min, float t_max, SHitRec 
     hitRec.p = ray.At(hitRec.t);
     hitRec.n = (hitRec.p - m_origin) / m_radius;
     hitRec.setFaceNormal(ray);
+    hitRec.p_hittable = shared_from_this();
     hitRec.p_material = m_material;
 
     return true;
@@ -43,7 +44,7 @@ bool    CHittableSphere::Hit(const CRay &ray, float t_min, float t_max, SHitRec 
 
 //----------------------------------------------------
 
-bool    CHittableSphere::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+bool    CHittableSphere::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits)
 {
     glm::vec3   oc = ray.m_origin - m_origin;
     float       b = glm::dot(oc, ray.m_dir);
@@ -68,6 +69,7 @@ bool    CHittableSphere::HitAll(const CRay &ray, float t_min, float t_max, VHits
     hitRec.p = ray.At(hitRec.t);
     hitRec.n = (hitRec.p - m_origin) / m_radius;
     hitRec.setFaceNormal(ray);
+    hitRec.p_hittable = shared_from_this();
     hitRec.p_material = m_material;
     hits.push_back(hitRec);
 
@@ -78,6 +80,7 @@ bool    CHittableSphere::HitAll(const CRay &ray, float t_min, float t_max, VHits
     hitRec.p = ray.At(hitRec.t);
     hitRec.n = (hitRec.p - m_origin) / m_radius;
     hitRec.setFaceNormal(ray);
+    hitRec.p_hittable = shared_from_this();
     hitRec.p_material = m_material;
     hits.push_back(hitRec);
     return true;
@@ -104,7 +107,7 @@ CHittableTriangle::CHittableTriangle(const glm::vec3 &v0, const glm::vec3 &v1, c
 
 //----------------------------------------------------
 
-bool    CHittableTriangle::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+bool    CHittableTriangle::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec)
 {
     glm::vec3   v1v0 = m_v1 - m_v0;
     glm::vec3   v2v0 = m_v2 - m_v0;
@@ -126,14 +129,15 @@ bool    CHittableTriangle::Hit(const CRay &ray, float t_min, float t_max, SHitRe
     hitRec.p = ray.At(t);
     hitRec.n = m_n;
     hitRec.setFaceNormal(ray);
-    hitRec.p_material = m_material;\
+    hitRec.p_hittable = shared_from_this();
+    hitRec.p_material = m_material;
 
     return true;
 }
 
 //----------------------------------------------------
 
-bool    CHittableTriangle::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+bool    CHittableTriangle::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits)
 {
     SHitRec   hitRec;
     if(Hit(ray, t_min, t_max, hitRec))
@@ -165,7 +169,7 @@ CHittablePlane::CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal,
 
 //----------------------------------------------------
 
-bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec)
 {
     const glm::vec3     oc = m_origin - ray.m_origin;
     const float         dotNL = glm::dot(ray.m_dir, m_vz);
@@ -190,6 +194,7 @@ bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &
         hitRec.p = ray.At(hitRec.t);
         hitRec.n = m_vz;
         hitRec.setFaceNormal(ray);
+        hitRec.p_hittable = shared_from_this();
         hitRec.p_material = m_material;
 
         return true;
@@ -199,7 +204,7 @@ bool    CHittablePlane::Hit(const CRay &ray, float t_min, float t_max, SHitRec &
 
 //----------------------------------------------------
 
-bool    CHittablePlane::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+bool    CHittablePlane::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits)
 {
     SHitRec   hitRec;
     if(Hit(ray, t_min, t_max, hitRec))
@@ -321,26 +326,20 @@ bool    CHittableMesh::Load(const char* file)
 
 //----------------------------------------------------
 
-bool    CHittableMesh::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const
+bool    CHittableMesh::Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec)
 {
     if (!m_isMeshLoaded)
-    {
-        std::cerr << "[Mesh] Error: Attempting to use mesh without loading!\n";
         return false;
-    }
 
     return m_triangles->Hit(ray, t_min, t_max, hitRec);
 }
 
 //----------------------------------------------------
 
-bool    CHittableMesh::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const
+bool    CHittableMesh::HitAll(const CRay &ray, float t_min, float t_max, VHits &hits)
 {
     if (!m_isMeshLoaded)
-    {
-        std::cerr << "[Mesh] Error: Attempting to use mesh without loading!\n";
         return false;
-    }
 
     return m_triangles->HitAll(ray, t_min, t_max, hits);
 }

@@ -7,6 +7,7 @@ _CD_NAMESPACE_BEGIN
 //----------------------------------------------------
 
 class CHittableList;
+class IHittable;
 class IMaterial;
 class CRay;
 
@@ -17,6 +18,7 @@ struct SHitRec
     glm::vec3                   p;
     glm::vec3                   n;
     float                       t;
+    std::shared_ptr<IHittable>  p_hittable;
     std::shared_ptr<IMaterial>  p_material;
     bool                        frontFace;
 
@@ -35,11 +37,11 @@ static bool     cmpHitRec(const SHitRec &hr1, const SHitRec &hr2) { return hr1.t
 
 //----------------------------------------------------
 
-class IHittable
+class IHittable : public std::enable_shared_from_this<IHittable>
 {
 public:
-    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const = 0;
-    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const = 0;
+    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) = 0;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) = 0;
 
 public:
     std::shared_ptr<IMaterial>  m_material;
@@ -53,8 +55,8 @@ class CHittableSphere : public IHittable
 public:
     CHittableSphere(const glm::vec3 &origin, float radius, const std::shared_ptr<IMaterial> &material);
 
-    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
-    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const override;
+    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) override;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) override;
 
 public:
     glm::vec3   m_origin;
@@ -68,8 +70,8 @@ class CHittableTriangle : public IHittable
 public:
     CHittableTriangle(const glm::vec3 &v0, const glm::vec3 &v1, const glm::vec3 &v2, const std::shared_ptr<IMaterial> &material);
 
-    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
-    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const override;
+    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) override;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) override;
 
 public:
     glm::vec3   m_v0, m_v1, m_v2;
@@ -83,8 +85,8 @@ class CHittablePlane : public IHittable
 public:
     CHittablePlane(const glm::vec3 &origin, const glm::vec3 &normal, const glm::vec3 &up, float sx, float sy, const std::shared_ptr<IMaterial> &material);
 
-    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
-    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const override;
+    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) override;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) override;
 
 public:
     glm::vec3   m_origin;
@@ -99,8 +101,8 @@ class CHittableMesh : public IHittable
 public:
     CHittableMesh(const glm::vec3 &origin, const std::shared_ptr<IMaterial> &material);
 
-    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) const override;
-    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) const override;
+    virtual bool    Hit(const CRay &ray, float t_min, float t_max, SHitRec &hitRec) override;
+    virtual bool    HitAll(const CRay &ray, float t_min, float t_max, VHits &hits) override;
     bool            Load(const char* file);
 
 public:

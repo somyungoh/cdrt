@@ -41,6 +41,11 @@ project ("CDRT")
         _SRC_DIR.."/*.cpp"
     }
 
+    -- Global
+    -- openmp ("On")    -- not tested
+
+    -- TODO: Windows
+    -- TODO: Linux
     -- macOS
     filter { "system:macosx" }
         defines { "GL_SILENCE_DEPRECATION" }
